@@ -19,7 +19,7 @@
 ################################################################
 locals {
   wildcard_dns   = ["nip.io", "sslip.io"]
-  cluster_domain = contains(local.wildcard_dns, var.cluster_domain) ? "${var.bastion_external_vip != "" ? var.bastion_external_vip : var.bastion_public_ip[0]}.${var.cluster_domain}" : var.cluster_domain
+  cluster_domain = !var.is_ppc && contains(local.wildcard_dns, var.cluster_domain) ? ("${var.bastion_external_vip != "" ? var.bastion_external_vip : var.bastion_public_ip[0]}.${var.cluster_domain}") : var.cluster_domain
   worker = {
     volume_count = lookup(var.worker, "data_volume_count", 0),
     volume_size  = lookup(var.worker, "data_volume_size", 100)
@@ -36,6 +36,7 @@ data "ibm_pi_network" "network" {
 }
 
 # RHCOS Image Import
+# NOTE: May have an issue due to air-gapped network. May need to require an import beforehand.
 resource "ibm_pi_image" "rhcos_image_import" {
   count = var.rhcos_import_image ? 1 : 0
 
@@ -86,7 +87,7 @@ resource "ibm_pi_instance" "bootstrap" {
   pi_sys_type          = var.system_type
   pi_cloud_instance_id = var.service_instance_id
 
-  pi_user_data = base64encode(data.ignition_config.bootstrap.rendered)
+  pi_user_data = !var.is_ppc? base64encode(data.ignition_config.bootstrap.rendered): null
 
   # Not needed by RHCOS but required by resource
   pi_key_pair_name = "${var.name_prefix}keypair"
@@ -98,7 +99,7 @@ resource "ibm_pi_instance" "bootstrap" {
   }
 }
 resource "ibm_pi_instance_action" "bootstrap_stop" {
-  count = var.bootstrap["count"] == 0 ? 0 : 1
+  count = var.is_ppc || var.bootstrap["count"] == 0 ? 0 : 1
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = ibm_pi_instance.bootstrap[count.index].instance_id
@@ -140,7 +141,7 @@ resource "ibm_pi_instance" "master" {
   pi_cloud_instance_id = var.service_instance_id
   pi_volume_ids        = local.master.volume_count == 0 ? null : [for ix in range(local.master.volume_count) : ibm_pi_volume.master.*.volume_id[(count.index * local.master.volume_count) + ix]]
 
-  pi_user_data = base64encode(data.ignition_config.master[count.index].rendered)
+  pi_user_data = !var.is_ppc ? base64encode(data.ignition_config.master[count.index].rendered): null
 
   # Not needed by RHCOS but required by resource
   pi_key_pair_name = "${var.name_prefix}keypair"
@@ -156,7 +157,7 @@ resource "ibm_pi_instance" "master" {
   }
 }
 resource "ibm_pi_instance_action" "master_stop" {
-  count = var.master["count"]
+  count = !var.is_ppc ? var.master["count"]: 0
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = ibm_pi_instance.master[count.index].instance_id
@@ -210,13 +211,12 @@ resource "ibm_pi_instance" "worker" {
   pi_cloud_instance_id = var.service_instance_id
   pi_volume_ids        = local.worker.volume_count == 0 ? null : [for ix in range(local.worker.volume_count) : ibm_pi_volume.worker.*.volume_id[(count.index * local.worker.volume_count) + ix]]
 
-  pi_user_data = base64encode(data.ignition_config.worker[count.index].rendered)
+  pi_user_data = !var.is_ppc ? base64encode(data.ignition_config.worker[count.index].rendered): null
 
   # Not needed by RHCOS but required by resource
   pi_key_pair_name = "${var.name_prefix}keypair"
   pi_health_status = "WARNING"
   pi_storage_pool  = data.ibm_pi_image.rhcos.storage_pool
-
   pi_network {
     network_id = data.ibm_pi_network.network.id
   }
@@ -226,7 +226,7 @@ resource "ibm_pi_instance" "worker" {
   }
 }
 resource "ibm_pi_instance_action" "worker_stop" {
-  count = var.worker["count"]
+  count = !var.is_ppc ? var.worker["count"]: 0
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = ibm_pi_instance.worker[count.index].instance_id
@@ -239,6 +239,7 @@ resource "null_resource" "remove_worker" {
   depends_on = [ibm_pi_instance.worker]
   triggers = {
     external_ip    = var.bastion_public_ip[0]
+    internal_ip    = var.bastion_ip
     rhel_username  = var.rhel_username
     private_key    = var.private_key
     ssh_agent      = var.ssh_agent
@@ -251,7 +252,7 @@ resource "null_resource" "remove_worker" {
     connection {
       type        = "ssh"
       user        = self.triggers.rhel_username
-      host        = self.triggers.external_ip
+      host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
       private_key = self.triggers.private_key
       agent       = self.triggers.ssh_agent
       timeout     = "2m"
@@ -304,3 +305,8 @@ data "ibm_pi_instance_ip" "worker_ip" {
   pi_network_name      = var.network_name
   pi_cloud_instance_id = var.service_instance_id
 }
+
+# // TODO: Add remote-exec on bastion to add worker, master, and bootstrap IPs to named
+# resource "null_resource" "bastion_update_named" {
+#   count = !var.is_ppc ? 0: var.bastion_count
+# }

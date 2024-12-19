@@ -29,6 +29,8 @@ variable "cluster_id" {
 }
 variable "bastion" {}
 
+variable "is_ppc" {}
+
 variable "name_prefix" {
   type = string
 

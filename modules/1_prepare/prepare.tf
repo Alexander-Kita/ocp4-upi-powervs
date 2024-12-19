@@ -66,10 +66,15 @@ data "ibm_pi_network" "network" {
 }
 
 resource "ibm_pi_network" "public_network" {
+  count                = !var.is_ppc ? 1: 0
   pi_network_name      = "${var.name_prefix}pub-net"
   pi_cloud_instance_id = var.service_instance_id
   pi_network_type      = "pub-vlan"
   pi_dns               = var.network_dns
+}
+
+locals {
+  pvm_instance_networks = !var.is_ppc ? [ibm_pi_network.public_network[0].network_id, data.ibm_pi_network.network.id]: [data.ibm_pi_network.network.id]
 }
 
 resource "ibm_pi_key" "key" {
@@ -103,11 +108,11 @@ resource "ibm_pi_instance" "bastion" {
   pi_volume_ids        = var.storage_type == "nfs" ? ibm_pi_volume.volume.*.volume_id : null
   pi_storage_pool      = local.bastion_storage_pool
 
-  pi_network {
-    network_id = ibm_pi_network.public_network.network_id
-  }
-  pi_network {
-    network_id = data.ibm_pi_network.network.id
+  dynamic "pi_network" {
+    for_each = local.pvm_instance_networks
+    content {
+      network_id = pi_network.value
+    }
   }
 }
 
@@ -121,11 +126,11 @@ data "ibm_pi_instance_ip" "bastion_ip" {
 }
 
 data "ibm_pi_instance_ip" "bastion_public_ip" {
-  count      = local.bastion_count
+  count      = !var.is_ppc ? local.bastion_count: 0
   depends_on = [ibm_pi_instance.bastion]
 
   pi_instance_name     = ibm_pi_instance.bastion[count.index].pi_instance_name
-  pi_network_name      = ibm_pi_network.public_network.pi_network_name
+  pi_network_name      = ibm_pi_network.public_network[0].pi_network_name
   pi_cloud_instance_id = var.service_instance_id
 }
 
@@ -136,7 +141,7 @@ resource "null_resource" "bastion_fips" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -165,7 +170,7 @@ resource "null_resource" "bastion_init" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -183,9 +188,9 @@ resource "null_resource" "bastion_init" {
     content     = var.public_key
     destination = ".ssh/id_rsa.pub"
   }
+  // TODO: FIX BELOW BEFORE TRYING
   provisioner "remote-exec" {
     inline = [<<EOF
-
 sudo chmod 600 .ssh/id_rsa*
 sudo sed -i.bak -e 's/^ - set_hostname/# - set_hostname/' -e 's/^ - update_hostname/# - update_hostname/' /etc/cloud/cloud.cfg
 sudo hostnamectl set-hostname --static ${lower(var.name_prefix)}bastion-${count.index}.${var.cluster_domain}
@@ -197,7 +202,7 @@ echo 'vm.max_map_count = 262144' | sudo tee --append /etc/sysctl.conf > /dev/nul
 sudo ppc64_cpu --smt=${var.rhel_smt} | true
 
 # turn off rx and set mtu to var.private_network_mtu for all ineterfaces to improve network performance
-cidrs=("${ibm_pi_network.public_network.pi_cidr}" "${data.ibm_pi_network.network.cidr}")
+cidrs=("${ibm_pi_network.public_network[0].pi_cidr}" "${data.ibm_pi_network.network.cidr}")
 for cidr in "$${cidrs[@]}"; do
   envs=($(ip r | grep "$cidr dev" | awk '{print $3}'))
   for env in "$${envs[@]}"; do
@@ -215,7 +220,7 @@ EOF
 }
 
 resource "null_resource" "setup_proxy_info" {
-  count      = !var.setup_squid_proxy && local.proxy.server != "" ? local.bastion_count : 0
+  count      = !var.is_ppc && !var.setup_squid_proxy && local.proxy.server != "" ? local.bastion_count : 0
   depends_on = [null_resource.bastion_init]
 
   connection {
@@ -265,6 +270,7 @@ resource "null_resource" "bastion_register" {
   depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info]
   triggers = {
     external_ip        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    internal_ip        = data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     rhel_username      = var.rhel_username
     private_key        = var.private_key
     ssh_agent          = var.ssh_agent
@@ -274,7 +280,7 @@ resource "null_resource" "bastion_register" {
   connection {
     type        = "ssh"
     user        = self.triggers.rhel_username
-    host        = self.triggers.external_ip
+    host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
     private_key = self.triggers.private_key
     agent       = self.triggers.ssh_agent
     timeout     = "${self.triggers.connection_timeout}m"
@@ -306,7 +312,7 @@ EOF
     connection {
       type        = "ssh"
       user        = self.triggers.rhel_username
-      host        = self.triggers.external_ip
+      host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
       private_key = self.triggers.private_key
       agent       = self.triggers.ssh_agent
       timeout     = "2m"
@@ -327,7 +333,7 @@ resource "null_resource" "enable_repos" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -358,7 +364,7 @@ resource "null_resource" "bastion_packages" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -404,7 +410,7 @@ resource "null_resource" "setup_nfs_disk" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -456,15 +462,15 @@ resource "ibm_pi_network_port" "bastion_vip" {
 }
 
 resource "ibm_pi_network_port" "bastion_internal_vip" {
-  count      = local.bastion_count > 1 ? 1 : 0
+  count      = !var.is_ppc && local.bastion_count > 1 ? 1 : 0
   depends_on = [ibm_pi_instance.bastion]
 
-  pi_network_name      = ibm_pi_network.public_network.pi_network_name
+  pi_network_name      = ibm_pi_network.public_network[0].pi_network_name
   pi_cloud_instance_id = var.service_instance_id
 }
 
 resource "ibm_pi_cloud_connection" "cloud_connection" {
-  count = var.create_cloud_connection ? 1 : 0
+  count = !var.is_ppc && var.create_cloud_connection ? 1 : 0
 
   pi_cloud_instance_id                = var.service_instance_id
   pi_cloud_connection_name            = "${var.cluster_id}-cc"

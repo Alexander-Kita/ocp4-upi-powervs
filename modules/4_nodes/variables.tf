@@ -18,8 +18,8 @@
 #
 ################################################################
 
-
 variable "service_instance_id" {}
+variable "is_ppc" {}
 
 variable "processor_type" {}
 variable "system_type" {}

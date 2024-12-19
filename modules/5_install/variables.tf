@@ -30,6 +30,7 @@ variable "dns_forwarders" {
 }
 
 variable "service_instance_id" {}
+variable "is_ppc" {}
 variable "region" {}
 variable "zone" {}
 variable "system_type" {}

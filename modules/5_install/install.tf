@@ -20,7 +20,7 @@
 
 locals {
   wildcard_dns   = ["nip.io", "sslip.io"]
-  cluster_domain = contains(local.wildcard_dns, var.cluster_domain) ? "${var.bastion_external_vip != "" ? var.bastion_external_vip : var.bastion_public_ip[0]}.${var.cluster_domain}" : var.cluster_domain
+  cluster_domain = !var.is_ppc && contains(local.wildcard_dns, var.cluster_domain) ? "${var.bastion_external_vip != "" ? var.bastion_external_vip : var.bastion_public_ip[0]}.${var.cluster_domain}" : var.cluster_domain
 
   public_vrrp = {
     virtual_router_id = var.bastion_internal_vip == "" ? "" : split(".", var.bastion_internal_vip)[3]
@@ -43,7 +43,9 @@ locals {
   }
 
   helpernode_vars = {
+    ibmcloud_api_key      = var.ibmcloud_api_key
     cluster_domain        = var.cluster_domain
+    service_type          = !var.is_ppc ? "public": "private"
     name_prefix           = var.name_prefix
     cluster_id            = var.cluster_id
     name_prefix           = var.name_prefix
@@ -201,6 +203,8 @@ locals {
   }
 }
 
+
+// NOTE: May need to take a look at this, may need to re-evaluate how this is ran since no dhcp is needed
 resource "null_resource" "config" {
 
   triggers = {
@@ -210,7 +214,7 @@ resource "null_resource" "config" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -247,7 +251,7 @@ resource "null_resource" "config" {
 }
 
 resource "null_resource" "configure_public_vip" {
-  count      = var.bastion_count > 1 ? var.bastion_count : 0
+  count      = !var.is_ppc && var.bastion_count > 1 ? var.bastion_count : 0
   depends_on = [null_resource.config]
 
   triggers = {
@@ -257,7 +261,7 @@ resource "null_resource" "configure_public_vip" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[count.index]
+    host        = !var.is_ppc ? var.bastion_public_ip[count.index]: var.bastion_ip[count.index]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -281,13 +285,13 @@ resource "null_resource" "configure_public_vip" {
 
 
 resource "null_resource" "setup_snat" {
-  count      = var.setup_snat ? var.bastion_count : 0
+  count      = !var.is_ppc && var.setup_snat ? var.bastion_count : 0
   depends_on = [null_resource.config]
 
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[count.index]
+    host        = !var.is_ppc ? var.bastion_public_ip[count.index]: var.bastion_ip[count.index]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -308,7 +312,7 @@ EOF
 }
 
 resource "null_resource" "external_services" {
-  count      = var.use_ibm_cloud_services ? var.bastion_count : 0
+  count      = !var.is_ppc && var.use_ibm_cloud_services ? var.bastion_count : 0
   depends_on = [null_resource.config, null_resource.setup_snat]
 
   triggers = {
@@ -334,7 +338,7 @@ resource "null_resource" "external_services" {
 }
 
 resource "null_resource" "pre_install" {
-  count      = var.bastion_count
+  count      = !var.is_ppc ? var.bastion_count: 0
   depends_on = [null_resource.config, null_resource.configure_public_vip, null_resource.setup_snat, null_resource.external_services]
 
   triggers = {
@@ -344,7 +348,7 @@ resource "null_resource" "pre_install" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[count.index]
+    host        = var.is_ppc ? var.bastion_public_ip[count.index]: var.bastion_ip[count.index]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -369,7 +373,7 @@ resource "null_resource" "install_config" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -420,7 +424,7 @@ resource "null_resource" "bootstrap_config" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -454,7 +458,7 @@ resource "null_resource" "bootstrap_complete" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -509,7 +513,7 @@ resource "null_resource" "powervs_config" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -541,7 +545,7 @@ resource "null_resource" "upgrade" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -570,7 +574,7 @@ resource "null_resource" "csi_driver_install" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"

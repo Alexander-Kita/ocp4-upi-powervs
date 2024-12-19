@@ -39,7 +39,7 @@ locals {
 
 module "prepare" {
   source = "./modules/1_prepare"
-
+  is_ppc                          = var.is_ppc
   bastion                         = var.bastion
   service_instance_id             = var.service_instance_id
   cluster_id                      = local.cluster_id
@@ -80,7 +80,7 @@ data "ibm_pi_workspace" "workspace" {
 locals {
   # PER doc reference: https://cloud.ibm.com/docs/power-iaas?topic=power-iaas-per
   is_per                  = contains(["dal10", "dal12", "fra04", "fra05", "wdc06", "wdc07", "mad02", "mad04", "sao01", "sao04"], var.ibmcloud_zone)
-  create_cloud_connection = var.use_ibm_cloud_services && var.ibm_cloud_connection_name == "" && !local.is_per
+  create_cloud_connection = var.use_ibm_cloud_services && var.ibm_cloud_connection_name == "" && !local.is_per && !var.is_ppc
   tgw_network             = module.prepare.cloud_connection_name == "" ? data.ibm_pi_workspace.workspace.pi_workspace_details.crn : module.prepare.cloud_connection_name
 }
 
@@ -88,6 +88,7 @@ module "nodes" {
   source = "./modules/4_nodes"
 
   service_instance_id             = var.service_instance_id
+  is_ppc                          = var.is_ppc
   rhcos_image_name                = var.rhcos_image_name
   processor_type                  = var.processor_type
   system_type                     = var.system_type
@@ -115,7 +116,7 @@ module "nodes" {
 module "install" {
   source     = "./modules/5_install"
   depends_on = [module.nodes]
-
+  is_ppc                         = var.is_ppc
   service_instance_id            = var.service_instance_id
   region                         = var.ibmcloud_region
   zone                           = var.ibmcloud_zone
