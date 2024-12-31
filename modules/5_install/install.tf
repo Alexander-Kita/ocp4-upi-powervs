@@ -492,7 +492,7 @@ resource "null_resource" "install" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.bastion_public_ip[0]
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"

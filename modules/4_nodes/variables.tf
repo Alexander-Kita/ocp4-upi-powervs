@@ -27,6 +27,7 @@ variable "network_name" {}
 variable "rhcos_image_name" {}
 
 variable "bastion_ip" {}
+variable "bastion_private_ips" {}
 variable "cluster_domain" {}
 variable "cluster_id" {}
 variable "name_prefix" {}

@@ -38,7 +38,7 @@ locals {
 }
 
 module "prepare" {
-  source = "./modules/1_prepare"
+  source                          = "./modules/1_prepare"
   is_ppc                          = var.is_ppc
   bastion                         = var.bastion
   service_instance_id             = var.service_instance_id
@@ -93,6 +93,7 @@ module "nodes" {
   processor_type                  = var.processor_type
   system_type                     = var.system_type
   network_name                    = var.network_name
+  bastion_private_ips             = module.prepare.bastion_ip
   bastion_ip                      = lookup(var.bastion, "count", 1) > 1 ? module.prepare.bastion_vip : module.prepare.bastion_ip[0]
   cluster_domain                  = var.cluster_domain
   cluster_id                      = local.cluster_id
@@ -114,8 +115,8 @@ module "nodes" {
 }
 
 module "install" {
-  source     = "./modules/5_install"
-  depends_on = [module.nodes]
+  source                         = "./modules/5_install"
+  depends_on                     = [module.nodes]
   is_ppc                         = var.is_ppc
   service_instance_id            = var.service_instance_id
   region                         = var.ibmcloud_region

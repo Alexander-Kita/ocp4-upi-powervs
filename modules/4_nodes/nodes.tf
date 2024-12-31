@@ -61,7 +61,7 @@ data "ignition_config" "bootstrap" {
   merge {
     source = "http://${var.bastion_ip}:8080/ignition/bootstrap.ign"
   }
-  files = [data.ignition_file.b_hostname.rendered]
+  files = !var.is_ppc ? [data.ignition_file.b_hostname.rendered]: []
 }
 
 data "ignition_file" "b_hostname" {
@@ -113,7 +113,7 @@ data "ignition_config" "master" {
   merge {
     source = "http://${var.bastion_ip}:8080/ignition/master.ign"
   }
-  files = [data.ignition_file.m_hostname[count.index].rendered]
+  files = !var.is_ppc ? [data.ignition_file.m_hostname[count.index].rendered]: []
 }
 
 data "ignition_file" "m_hostname" {
@@ -195,7 +195,7 @@ data "ignition_config" "worker" {
   merge {
     source = "http://${var.bastion_ip}:8080/ignition/worker.ign"
   }
-  files = [data.ignition_file.w_hostname[count.index].rendered]
+  files = !var.is_ppc ? [data.ignition_file.w_hostname[count.index].rendered]: []
 }
 
 resource "ibm_pi_instance" "worker" {
@@ -306,7 +306,78 @@ data "ibm_pi_instance_ip" "worker_ip" {
   pi_cloud_instance_id = var.service_instance_id
 }
 
-# // TODO: Add remote-exec on bastion to add worker, master, and bootstrap IPs to named
-# resource "null_resource" "bastion_update_named" {
-#   count = !var.is_ppc ? 0: var.bastion_count
-# }
+resource "null_resource" "bastion_update_named" {
+  depends_on = [ data.ibm_pi_instance_ip.worker_ip, data.ibm_pi_instance_ip.master_ip, data.ibm_pi_instance_ip.bootstrap_ip]
+  count = length(var.bastion_private_ips)
+  triggers = {
+    worker_ips = join(",",[for w in data.ibm_pi_instance_ip.worker_ip: w.ip])
+    master_ips = join(",",[for m in data.ibm_pi_instance_ip.master_ip: m.ip])
+  }
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = var.rhel_username
+      host        = var.bastion_private_ips[count.index]
+      private_key = var.private_key
+      agent       = var.ssh_agent
+      timeout     = "2m"
+    }
+
+    inline = [<<EOT
+    %{ for idx,m in data.ibm_pi_instance_ip.master_ip ~}
+      dns_ip_address=$(nslookup ${var.node_prefix}master-${idx}.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
+      if [ -z $dns_ip_address ]; then
+        echo "dns_ip_address is empty"
+        exit 1
+      fi
+      echo "DNS IP address: $dns_ip_address"
+      echo "Desired IP address: ${m.ip}"
+      if [ "$dns_ip_address" != "${m.ip}" ]; then
+        sed -i "s/$dns_ip_address/${m.ip}/" /var/named/zonefile.db
+        sed -i "s/$dns_ip_address/${m.ip}/" /etc/haproxy/haproxy.cfg
+        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${m.ip}|cut -d . -f 4)/" /var/named/reverse.db
+        echo "Changed!"
+       else
+        echo "IP is correct."
+      fi
+    %{ endfor ~}
+
+    %{ for idx,w in data.ibm_pi_instance_ip.worker_ip ~}
+      dns_ip_address=$(nslookup ${var.node_prefix}worker-${idx}.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
+      if [ -z $dns_ip_address ]; then
+        echo "dns_ip_address is empty"
+        exit 1
+      fi
+      echo "DNS IP address: $dns_ip_address"
+      echo "Desired IP address: ${w.ip}"
+      if [ "$dns_ip_address" != "${w.ip}" ]; then
+        sed -i "s/$dns_ip_address/${w.ip}/" /var/named/zonefile.db
+        sed -i "s/$dns_ip_address/${w.ip}/" /etc/haproxy/haproxy.cfg
+        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${w.ip}|cut -d . -f 4)/" /var/named/reverse.db
+        echo "Changed!"
+      else
+        echo "IP is correct."
+      fi
+    %{ endfor ~}
+
+    %{ for idx,b in data.ibm_pi_instance_ip.bootstrap_ip ~}
+      dns_ip_address=$(nslookup ${var.node_prefix}bootstrap.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
+      if [ -z $dns_ip_address ]; then
+        echo "dns_ip_address is empty"
+        exit 1
+      fi
+      echo "DNS IP address: $dns_ip_address"
+      echo "Desired IP address: ${b.ip}"
+      if [ "$dns_ip_address" != "${b.ip}" ]; then
+        sed -i "s/$dns_ip_address/${b.ip}/" /var/named/zonefile.db
+        sed -i "s/$dns_ip_address/${b.ip}/" /etc/haproxy/haproxy.cfg
+        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${b.ip}|cut -d . -f 4)/" /var/named/reverse.db
+        echo "Changed!"
+      else
+        echo "IP is correct."
+      fi
+    %{ endfor ~}
+    EOT
+  ]
+  }
+}

@@ -66,9 +66,9 @@ variable "ibmcloud_zone" {
 }
 
 variable "is_ppc" {
-  type = bool
+  type        = bool
   description = "Boolean indicating if target datacenter is public or private. True if private. Default is false."
-  default = false
+  default     = false
 }
 
 ################################################################
