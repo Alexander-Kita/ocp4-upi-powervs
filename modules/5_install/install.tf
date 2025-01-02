@@ -348,7 +348,7 @@ resource "null_resource" "pre_install" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = var.is_ppc ? var.bastion_public_ip[count.index]: var.bastion_ip[count.index]
+    host        = !var.is_ppc ? var.bastion_public_ip[count.index]: var.bastion_ip[count.index]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
@@ -406,7 +406,7 @@ resource "null_resource" "install_config" {
 
 resource "ibm_pi_instance_action" "bootstrap_start" {
   depends_on = [null_resource.pre_install, null_resource.install_config]
-  count      = var.bootstrap_count == 0 ? 0 : 1
+  count      = var.bootstrap_count == 0 || var.is_ppc ? 0 : 1
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = "${var.name_prefix}bootstrap"
@@ -440,7 +440,7 @@ resource "null_resource" "bootstrap_config" {
 
 resource "ibm_pi_instance_action" "master_start" {
   depends_on = [null_resource.bootstrap_config, ibm_pi_instance_action.bootstrap_start]
-  count      = var.master_count
+  count      = !var.is_ppc ? var.master_count: 0
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = "${var.name_prefix}master-${count.index}"
@@ -474,7 +474,7 @@ resource "null_resource" "bootstrap_complete" {
 
 resource "ibm_pi_instance_action" "worker_start" {
   depends_on = [null_resource.bootstrap_complete, ibm_pi_instance_action.master_start]
-  count      = var.worker_count
+  count      = !var.is_ppc ? var.worker_count: 0
 
   pi_cloud_instance_id = var.service_instance_id
   pi_instance_id       = "${var.name_prefix}worker-${count.index}"
@@ -492,7 +492,7 @@ resource "null_resource" "install" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip
+    host        = !var.is_ppc ? var.bastion_public_ip[0]: var.bastion_ip[0]
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"

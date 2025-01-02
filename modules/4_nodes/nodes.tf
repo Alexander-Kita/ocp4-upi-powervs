@@ -238,6 +238,7 @@ resource "null_resource" "remove_worker" {
   count      = var.worker["count"]
   depends_on = [ibm_pi_instance.worker]
   triggers = {
+    is_ppc         = var.is_ppc
     external_ip    = var.bastion_public_ip[0]
     internal_ip    = var.bastion_ip
     rhel_username  = var.rhel_username
@@ -252,7 +253,7 @@ resource "null_resource" "remove_worker" {
     connection {
       type        = "ssh"
       user        = self.triggers.rhel_username
-      host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
+      host        = !self.triggers.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
       private_key = self.triggers.private_key
       agent       = self.triggers.ssh_agent
       timeout     = "2m"

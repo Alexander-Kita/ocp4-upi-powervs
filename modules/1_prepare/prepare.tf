@@ -188,9 +188,8 @@ resource "null_resource" "bastion_init" {
     content     = var.public_key
     destination = ".ssh/id_rsa.pub"
   }
-  // TODO: FIX BELOW BEFORE TRYING
   provisioner "remote-exec" {
-    inline = [<<EOF
+    inline = [<<EOT
 sudo chmod 600 .ssh/id_rsa*
 sudo sed -i.bak -e 's/^ - set_hostname/# - set_hostname/' -e 's/^ - update_hostname/# - update_hostname/' /etc/cloud/cloud.cfg
 sudo hostnamectl set-hostname --static ${lower(var.name_prefix)}bastion-${count.index}.${var.cluster_domain}
@@ -201,6 +200,7 @@ echo 'vm.max_map_count = 262144' | sudo tee --append /etc/sysctl.conf > /dev/nul
 # Set SMT to user specified value; Should not fail for invalid values.
 sudo ppc64_cpu --smt=${var.rhel_smt} | true
 
+%{ if !var.is_ppc }
 # turn off rx and set mtu to var.private_network_mtu for all ineterfaces to improve network performance
 cidrs=("${ibm_pi_network.public_network[0].pi_cidr}" "${data.ibm_pi_network.network.cidr}")
 for cidr in "$${cidrs[@]}"; do
@@ -212,9 +212,10 @@ for cidr in "$${cidrs[@]}"; do
     sudo nmcli connection up "$con_name"
   done
 done
+%{ endif }
 
 
-EOF
+EOT
     ]
   }
 }
@@ -269,6 +270,7 @@ resource "null_resource" "bastion_register" {
   count      = (var.rhel_subscription_username == "" || var.rhel_subscription_username == "<subscription-id>") && var.rhel_subscription_org == "" ? 0 : local.bastion_count
   depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info]
   triggers = {
+    is_ppc             = var.is_ppc
     external_ip        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
     internal_ip        = data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     rhel_username      = var.rhel_username
@@ -280,7 +282,7 @@ resource "null_resource" "bastion_register" {
   connection {
     type        = "ssh"
     user        = self.triggers.rhel_username
-    host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
+    host        = !self.triggers.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
     private_key = self.triggers.private_key
     agent       = self.triggers.ssh_agent
     timeout     = "${self.triggers.connection_timeout}m"
@@ -312,7 +314,7 @@ EOF
     connection {
       type        = "ssh"
       user        = self.triggers.rhel_username
-      host        = !var.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
+      host        = !self.triggers.is_ppc ? self.triggers.external_ip: self.triggers.internal_ip
       private_key = self.triggers.private_key
       agent       = self.triggers.ssh_agent
       timeout     = "2m"

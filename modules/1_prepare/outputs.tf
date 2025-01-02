@@ -37,7 +37,7 @@ output "cidr" {
 }
 
 output "public_cidr" {
-  value = ibm_pi_network.public_network.pi_cidr
+  value = ibm_pi_network.public_network[0].pi_cidr
 }
 
 output "bastion_vip" {
