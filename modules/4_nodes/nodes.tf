@@ -308,7 +308,7 @@ data "ibm_pi_instance_ip" "worker_ip" {
 
 resource "null_resource" "bastion_update_named" {
   depends_on = [ data.ibm_pi_instance_ip.worker_ip, data.ibm_pi_instance_ip.master_ip, data.ibm_pi_instance_ip.bootstrap_ip]
-  count = length(var.bastion_private_ips)
+  count = !var.is_ppc ? 0: length(var.bastion_private_ips)
   triggers = {
     worker_ips = join(",",[for w in data.ibm_pi_instance_ip.worker_ip: w.ip])
     master_ips = join(",",[for m in data.ibm_pi_instance_ip.master_ip: m.ip])
