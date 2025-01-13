@@ -4,6 +4,7 @@ ibmcloud_api_key    = "<key>"
 ibmcloud_region     = "<region>"
 ibmcloud_zone       = "<zone>"
 service_instance_id = "<cloud_instance_ID>"
+#is_ppc              = false
 
 ### OpenShift Cluster Details
 
@@ -20,13 +21,21 @@ worker    = { memory = "32", processors = "0.5", "count" = 2 }
 #master    = { memory = "32", processors = "0.5", "count" = 3, data_volume_count  = 0, data_volume_size  = 100 }
 #worker    = { memory = "32", processors = "0.5", "count" = 2, data_volume_count  = 0, data_volume_size  = 100 }
 
-rhel_image_name  = "rhel-8.3"
+rhel_image_name  = "CentOS-Stream-9"
 rhcos_image_name = "rhcos-4.12"
+
+### Custom Mirrors
+
+epel_install_mirror       = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/Packages/e/epel-release-9-9.el9.noarch.rpm"
+baseos_mirror_repo        = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/BaseOS/$basearch/os"
+appstream_mirror_repo     = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/AppStream/$basearch/os"
+epel_mirror_repo          = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/"
+extras_common_mirror_repo = "https://ftp-chi.osuosl.org/pub/centos-stream/SIGs/9-stream/extras/ppc64le/extras-common/"
 
 ### Provide these parameters if RHCOS image needs to be imported from public bucket of cloud object storage to PVS.
 ### When this is provided, data provided through parameter "rhcos_image_name" will be ignored.
 rhcos_import_image              = false # true/false (default=false).
-rhcos_import_image_filename     = "rhcos-410-84-202201251004-0-ppc64le-powervs.ova.gz"
+rhcos_import_image_filename     = "rhcos-417-94-202410092328-0-ppc64le-powervs.ova.gz"
 rhcos_import_image_storage_type = "tier1" # tier1/tier3 (default=tier1) Storage type in PowerVS
 
 processor_type = "shared"

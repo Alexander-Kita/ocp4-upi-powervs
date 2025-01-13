@@ -575,6 +575,40 @@ variable "fips_compliant" {
 }
 
 ################################################################
+# Custom repository mirror variables ( used only for restricted network install on private workspace)
+# ONLY USED WHEN USING CENTOS
+################################################################
+variable "epel_install_mirror" {
+  type        = string
+  default     = ""
+  description = "Link to whitelisted EPEL package mirror"
+}
+
+variable "baseos_mirror_repo" {
+  type        = string
+  default     = ""
+  description = "Link to whitelisted BaseOS repository mirror"
+}
+
+variable "appstream_mirror_repo" {
+  type        = string
+  default     = ""
+  description = "Link to whitelisted AppStream repository mirror"
+}
+
+variable "epel_mirror_repo" {
+  type        = string
+  default     = ""
+  description = "Link to whitelisted EPEL repository mirror"
+}
+
+variable "extras_common_mirror_repo" {
+  type        = string
+  default     = ""
+  description = "Link to whitelisted extras-common repository mirror"
+}
+
+################################################################
 # Local registry variables ( used only for restricted network install )
 ################################################################
 variable "enable_local_registry" {

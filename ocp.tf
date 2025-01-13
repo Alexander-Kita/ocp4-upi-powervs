@@ -63,6 +63,11 @@ module "prepare" {
   rhel_subscription_org           = var.rhel_subscription_org
   rhel_subscription_activationkey = var.rhel_subscription_activationkey
   ansible_repo_name               = var.ansible_repo_name
+  epel_install_mirror             = var.epel_install_mirror
+  epel_mirror_repo                = var.epel_mirror_repo
+  appstream_mirror_repo           = var.appstream_mirror_repo
+  baseos_mirror_repo              = var.baseos_mirror_repo
+  extras_common_mirror_repo       = var.extras_common_mirror_repo
   rhel_smt                        = var.rhel_smt
   storage_type                    = local.storage_type
   volume_size                     = var.volume_size

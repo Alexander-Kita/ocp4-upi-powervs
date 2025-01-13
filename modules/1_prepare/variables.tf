@@ -72,6 +72,11 @@ variable "rhel_subscription_password" {}
 variable "rhel_subscription_org" {}
 variable "rhel_subscription_activationkey" {}
 variable "ansible_repo_name" {}
+variable "epel_install_mirror" {}
+variable "baseos_mirror_repo" {}
+variable "appstream_mirror_repo" {}
+variable "epel_mirror_repo" {}
+variable "extras_common_mirror_repo" {}
 
 variable "rhel_smt" {}
 
