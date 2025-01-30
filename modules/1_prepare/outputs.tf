@@ -25,7 +25,7 @@ output "bastion_ip" {
 
 output "bastion_public_ip" {
   depends_on = [null_resource.bastion_packages, null_resource.setup_nfs_disk]
-  value      = data.ibm_pi_instance_ip.bastion_public_ip.*.external_ip
+  value      = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip.*.external_ip: []
 }
 
 output "gateway_ip" {
@@ -37,7 +37,7 @@ output "cidr" {
 }
 
 output "public_cidr" {
-  value = ibm_pi_network.public_network[0].pi_cidr
+  value = !var.is_ppc ? ibm_pi_network.public_network[0].pi_cidr: ""
 }
 
 output "bastion_vip" {
@@ -52,7 +52,7 @@ output "bastion_internal_vip" {
 
 output "bastion_external_vip" {
   depends_on = [null_resource.bastion_init]
-  value      = local.bastion_count > 1 ? ibm_pi_network_port.bastion_internal_vip[0].public_ip : ""
+  value      = !var.is_ppc && local.bastion_count > 1 ? ibm_pi_network_port.bastion_internal_vip[0].public_ip : ""
 }
 
 output "cloud_connection_name" {

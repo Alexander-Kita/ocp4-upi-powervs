@@ -225,6 +225,7 @@ resource "ibm_pi_instance" "worker" {
     ignore_changes = [pi_storage_pool_affinity]
   }
 }
+
 resource "ibm_pi_instance_action" "worker_stop" {
   count = !var.is_ppc ? var.worker["count"]: 0
 
@@ -239,7 +240,7 @@ resource "null_resource" "remove_worker" {
   depends_on = [ibm_pi_instance.worker]
   triggers = {
     is_ppc         = var.is_ppc
-    external_ip    = var.bastion_public_ip[0]
+    external_ip    = !var.is_ppc ? var.bastion_public_ip[0]: ""
     internal_ip    = var.bastion_ip
     rhel_username  = var.rhel_username
     private_key    = var.private_key

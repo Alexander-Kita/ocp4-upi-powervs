@@ -328,9 +328,50 @@ EOF
   }
 }
 
+### TODO: ASK HOW THIS WILL WORK WITH RHEL (if it will be supported)
+resource "null_resource" "replace_metalinks_yum" {
+  count = var.baseos_mirror_repo != "" || var.appstream_mirror_repo != "" || var.extras_common_mirror_repo != "" ? local.bastion_count: 0
+  depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info, null_resource.bastion_register]
+
+  connection {
+    type = "ssh"
+    user        = var.rhel_username
+    host        = !var.is_ppc? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
+    private_key = var.private_key
+    agent       = var.ssh_agent
+    timeout     = "${var.connection_timeout}m"
+  }
+
+  provisioner "remote-exec" {
+    inline = [<<EOF
+# BaseOS
+if [ "${var.baseos_mirror_repo}" != "" ]; then
+formatted_new=$(echo '${var.baseos_mirror_repo}' | sed 's/\//\\\//g')
+  echo "Replacing BaseOS Repo"
+  sed -i "/\[baseos\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos.repo
+fi
+
+# AppStream
+if [ "${var.appstream_mirror_repo}" != "" ]; then
+  formatted_new=$(echo '${var.appstream_mirror_repo}' | sed 's/\//\\\//g')
+  echo "Replacing AppStream Repo"
+  sed -i "/\[appstream\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos.repo
+fi
+
+# Extras - common
+if [ "${var.extras_common_mirror_repo}" != "" ]; then
+  formatted_new=$(echo '${var.extras_common_mirror_repo}' | sed 's/\//\\\//g')
+  echo "Replacing Extras Repo"
+  sed -i "/\[extras-common\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos-addons.repo
+fi
+EOF
+    ]
+  }
+}
+
 resource "null_resource" "enable_repos" {
   count      = local.bastion_count
-  depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info, null_resource.bastion_register]
+  depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info, null_resource.bastion_register, null_resource.replace_metalinks_yum]
 
   connection {
     type        = "ssh"
@@ -368,8 +409,8 @@ EOF
 }
 
 ### TODO: ASK HOW THIS WILL WORK WITH RHEL (if it will be supported)
-resource "null_resource" "replace_metalinks_yum" {
-  count = var.baseos_mirror_repo != "" || var.appstream_mirror_repo != "" || var.epel_mirror_repo != "" || var.extras_common_mirror_repo != "" ? local.bastion_count: 0
+resource "null_resource" "replace_metalinks_yum_epel" {
+  count = var.epel_mirror_repo != "" ? local.bastion_count: 0
   depends_on = [null_resource.bastion_init, null_resource.setup_proxy_info, null_resource.bastion_register, null_resource.enable_repos]
 
   connection {
@@ -383,32 +424,11 @@ resource "null_resource" "replace_metalinks_yum" {
 
   provisioner "remote-exec" {
     inline = [<<EOF
-# BaseOS
-if [ "${var.baseos_mirror_repo}" != "" ]; then
-formatted_new=$(echo '${var.baseos_mirror_repo}' | sed 's/\//\\\//g')
-  echo "Replacing BaseOS Repo"
-  sed -i "/\[baseos\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos.repo
-fi
-
-# AppStream
-if [ "${var.appstream_mirror_repo}" != "" ]; then
-  formatted_new=$(echo '${var.appstream_mirror_repo}' | sed 's/\//\\\//g')
-  echo "Replacing AppStream Repo"
-  sed -i "/\[appstream\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos.repo
-fi
-
 # EPEL
 if [ "${var.epel_mirror_repo}" != "" ]; then
   formatted_new=$(echo '${var.epel_mirror_repo}' | sed 's/\//\\\//g')
   echo "Replacing EPEL Repo"
   sed -i "/\[epel\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/epel.repo
-fi
-
-# Extras - common
-if [ "${var.extras_common_mirror_repo}" != "" ]; then
-  formatted_new=$(echo '${var.extras_common_mirror_repo}' | sed 's/\//\\\//g')
-  echo "Replacing Extras Repo"
-  sed -i "/\[extras-common\]/,/^metalink=/s/metalink=/baseurl=$formatted_new\n#metalink=/" /etc/yum.repos.d/centos-addons.repo
 fi
 EOF
     ]
@@ -499,7 +519,7 @@ resource "null_resource" "rhel83_fix" {
   connection {
     type        = "ssh"
     user        = var.rhel_username
-    host        = data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip
+    host        = !var.is_ppc ? data.ibm_pi_instance_ip.bastion_public_ip[count.index].external_ip: data.ibm_pi_instance_ip.bastion_ip[count.index].ip
     private_key = var.private_key
     agent       = var.ssh_agent
     timeout     = "${var.connection_timeout}m"
