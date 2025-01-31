@@ -43,7 +43,7 @@ output "bastion_public_ip" {
 }
 
 output "bastion_ssh_command" {
-  value = !var.is_ppc ? "ssh -i ${var.private_key_file} ${var.rhel_username}@${module.install.bastion_external_vip == "" ? module.prepare.bastion_public_ip[0] : module.install.bastion_external_vip}": "ssh -i ${var.private_key_file} ${var.rhel_username}@${module.prepare.bastion_ip[0]}"
+  value = !var.is_ppc ? "ssh -i ${var.private_key_file} ${var.rhel_username}@${module.install.bastion_external_vip == "" ? module.prepare.bastion_public_ip[0] : module.install.bastion_external_vip}" : "ssh -i ${var.private_key_file} ${var.rhel_username}@${module.prepare.bastion_ip[0]}"
 }
 
 output "bootstrap_ip" {
@@ -64,7 +64,7 @@ output "dns_entries" {
 api.${local.cluster_id}.${var.cluster_domain}.  IN  A  ${module.install.bastion_external_vip == "" ? module.prepare.bastion_public_ip[0] : module.install.bastion_external_vip}
 *.apps.${local.cluster_id}.${var.cluster_domain}.  IN  A  ${module.install.bastion_external_vip == "" ? module.prepare.bastion_public_ip[0] : module.install.bastion_external_vip}
 EOF
-  ): <<-EOF
+  ) : <<-EOF
     api.${local.cluster_id}.${var.cluster_domain}.  IN  A  ${module.prepare.bastion_ip[0]}
     *.apps.${local.cluster_id}.${var.cluster_domain}.  IN  A  ${module.prepare.bastion_ip[0]}
   EOF
@@ -75,7 +75,7 @@ output "etc_hosts_entries" {
 
 ${module.install.bastion_external_vip == "" ? module.prepare.bastion_public_ip[0] : module.install.bastion_external_vip} api.${local.cluster_id}.${var.cluster_domain} console-openshift-console.apps.${local.cluster_id}.${var.cluster_domain} integrated-oauth-server-openshift-authentication.apps.${local.cluster_id}.${var.cluster_domain} oauth-openshift.apps.${local.cluster_id}.${var.cluster_domain} prometheus-k8s-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} grafana-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} example.apps.${local.cluster_id}.${var.cluster_domain}
 EOF
-): "${module.prepare.bastion_ip[0]} api.${local.cluster_id}.${var.cluster_domain} console-openshift-console.apps.${local.cluster_id}.${var.cluster_domain} integrated-oauth-server-openshift-authentication.apps.${local.cluster_id}.${var.cluster_domain} oauth-openshift.apps.${local.cluster_id}.${var.cluster_domain} prometheus-k8s-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} grafana-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} example.apps.${local.cluster_id}.${var.cluster_domain}"
+  ) : "${module.prepare.bastion_ip[0]} api.${local.cluster_id}.${var.cluster_domain} console-openshift-console.apps.${local.cluster_id}.${var.cluster_domain} integrated-oauth-server-openshift-authentication.apps.${local.cluster_id}.${var.cluster_domain} oauth-openshift.apps.${local.cluster_id}.${var.cluster_domain} prometheus-k8s-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} grafana-openshift-monitoring.apps.${local.cluster_id}.${var.cluster_domain} example.apps.${local.cluster_id}.${var.cluster_domain}"
 }
 
 output "oc_server_url" {

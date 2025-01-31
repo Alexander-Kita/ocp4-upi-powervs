@@ -79,7 +79,7 @@ module "prepare" {
 }
 
 data "ibm_pi_workspace" "workspace" {
-  count = !var.is_ppc ? 1: 0
+  count                = !var.is_ppc ? 1 : 0
   pi_cloud_instance_id = var.service_instance_id
 }
 
