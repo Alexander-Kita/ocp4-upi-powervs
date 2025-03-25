@@ -217,6 +217,7 @@ resource "ibm_pi_instance" "worker" {
   pi_key_pair_name = "${var.name_prefix}keypair"
   pi_health_status = "WARNING"
   pi_storage_pool  = data.ibm_pi_image.rhcos.storage_pool
+
   pi_network {
     network_id = data.ibm_pi_network.network.id
   }

@@ -43,7 +43,6 @@ locals {
   }
 
   helpernode_vars = {
-    ibmcloud_api_key      = var.ibmcloud_api_key
     cluster_domain        = var.cluster_domain
     service_type          = !var.is_ppc ? "public": "private"
     name_prefix           = var.name_prefix
