@@ -30,6 +30,7 @@ variable "cluster_id" {
 variable "bastion" {}
 
 variable "is_ppc" {}
+variable "ibmcloud_api_key" {}
 
 variable "name_prefix" {
   type = string
@@ -89,3 +90,5 @@ variable "proxy" {}
 variable "fips_compliant" {}
 
 variable "create_cloud_connection" {}
+
+variable "workspace_crn" {}

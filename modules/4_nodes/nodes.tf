@@ -280,9 +280,22 @@ resource "ibm_pi_volume" "worker" {
   pi_cloud_instance_id = var.service_instance_id
 }
 
+# These two resources below are needed to get around a service broker behavior on private, remove if patched
+data "ibm_pi_instance_ip" "ip_init" {
+  for_each             = var.is_ppc ? toset(concat(ibm_pi_instance.bootstrap.*.pi_instance_name, ibm_pi_instance.master.*.pi_instance_name, ibm_pi_instance.worker.*.pi_instance_name)): []
+  pi_instance_name     = each.value
+  pi_network_name      = var.network_name
+  pi_cloud_instance_id = var.service_instance_id
+}
+
+resource "time_sleep" "wait_for_dhcp_ips" {
+  depends_on = [data.ibm_pi_instance_ip.ip_init]
+  count = !var.is_ppc ? 0: 1
+  create_duration = "3m"
+}
 
 data "ibm_pi_instance_ip" "bootstrap_ip" {
-  depends_on = [ibm_pi_instance.bootstrap]
+  depends_on = [time_sleep.wait_for_dhcp_ips]
   count      = var.bootstrap["count"] == 0 ? 0 : 1
 
   pi_instance_name     = ibm_pi_instance.bootstrap[count.index].pi_instance_name
@@ -291,7 +304,7 @@ data "ibm_pi_instance_ip" "bootstrap_ip" {
 }
 
 data "ibm_pi_instance_ip" "master_ip" {
-  depends_on = [ibm_pi_instance.master]
+  depends_on = [time_sleep.wait_for_dhcp_ips]
   count      = var.master["count"]
 
   pi_instance_name     = ibm_pi_instance.master[count.index].pi_instance_name
@@ -300,86 +313,10 @@ data "ibm_pi_instance_ip" "master_ip" {
 }
 
 data "ibm_pi_instance_ip" "worker_ip" {
-  depends_on = [ibm_pi_instance.worker]
+  depends_on = [time_sleep.wait_for_dhcp_ips]
   count      = var.worker["count"]
 
   pi_instance_name     = ibm_pi_instance.worker[count.index].pi_instance_name
   pi_network_name      = var.network_name
   pi_cloud_instance_id = var.service_instance_id
-}
-
-resource "null_resource" "bastion_update_named" {
-  depends_on = [ data.ibm_pi_instance_ip.worker_ip, data.ibm_pi_instance_ip.master_ip, data.ibm_pi_instance_ip.bootstrap_ip]
-  count = !var.is_ppc ? 0: length(var.bastion_private_ips)
-  triggers = {
-    worker_ips = join(",",[for w in data.ibm_pi_instance_ip.worker_ip: w.ip])
-    master_ips = join(",",[for m in data.ibm_pi_instance_ip.master_ip: m.ip])
-  }
-  provisioner "remote-exec" {
-    connection {
-      type        = "ssh"
-      user        = var.rhel_username
-      host        = var.bastion_private_ips[count.index]
-      private_key = var.private_key
-      agent       = var.ssh_agent
-      timeout     = "2m"
-    }
-
-    inline = [<<EOT
-    %{ for idx,m in data.ibm_pi_instance_ip.master_ip ~}
-      dns_ip_address=$(nslookup ${var.node_prefix}master-${idx}.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
-      if [ -z $dns_ip_address ]; then
-        echo "dns_ip_address is empty"
-        exit 1
-      fi
-      echo "DNS IP address: $dns_ip_address"
-      echo "Desired IP address: ${m.ip}"
-      if [ "$dns_ip_address" != "${m.ip}" ]; then
-        sed -i "s/$dns_ip_address/${m.ip}/" /var/named/zonefile.db
-        sed -i "s/$dns_ip_address/${m.ip}/" /etc/haproxy/haproxy.cfg
-        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${m.ip}|cut -d . -f 4)/" /var/named/reverse.db
-        echo "Changed!"
-       else
-        echo "IP is correct."
-      fi
-    %{ endfor ~}
-
-    %{ for idx,w in data.ibm_pi_instance_ip.worker_ip ~}
-      dns_ip_address=$(nslookup ${var.node_prefix}worker-${idx}.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
-      if [ -z $dns_ip_address ]; then
-        echo "dns_ip_address is empty"
-        exit 1
-      fi
-      echo "DNS IP address: $dns_ip_address"
-      echo "Desired IP address: ${w.ip}"
-      if [ "$dns_ip_address" != "${w.ip}" ]; then
-        sed -i "s/$dns_ip_address/${w.ip}/" /var/named/zonefile.db
-        sed -i "s/$dns_ip_address/${w.ip}/" /etc/haproxy/haproxy.cfg
-        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${w.ip}|cut -d . -f 4)/" /var/named/reverse.db
-        echo "Changed!"
-      else
-        echo "IP is correct."
-      fi
-    %{ endfor ~}
-
-    %{ for idx,b in data.ibm_pi_instance_ip.bootstrap_ip ~}
-      dns_ip_address=$(nslookup ${var.node_prefix}bootstrap.${var.cluster_id}.${local.cluster_domain} | grep "Address: "| awk '{print $2}')
-      if [ -z $dns_ip_address ]; then
-        echo "dns_ip_address is empty"
-        exit 1
-      fi
-      echo "DNS IP address: $dns_ip_address"
-      echo "Desired IP address: ${b.ip}"
-      if [ "$dns_ip_address" != "${b.ip}" ]; then
-        sed -i "s/$dns_ip_address/${b.ip}/" /var/named/zonefile.db
-        sed -i "s/$dns_ip_address/${b.ip}/" /etc/haproxy/haproxy.cfg
-        sed -i "s/$(echo $dns_ip_address|cut -d . -f 4)/$(echo ${b.ip}|cut -d . -f 4)/" /var/named/reverse.db
-        echo "Changed!"
-      else
-        echo "IP is correct."
-      fi
-    %{ endfor ~}
-    EOT
-  ]
-  }
 }

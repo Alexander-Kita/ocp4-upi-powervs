@@ -203,8 +203,6 @@ locals {
   }
 }
 
-
-// NOTE: May need to take a look at this, may need to re-evaluate how this is ran since no dhcp is needed
 resource "null_resource" "config" {
 
   triggers = {

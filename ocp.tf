@@ -76,6 +76,8 @@ module "prepare" {
   proxy                           = var.proxy
   fips_compliant                  = var.fips_compliant
   create_cloud_connection         = local.create_cloud_connection
+  ibmcloud_api_key                = var.ibmcloud_api_key
+  workspace_crn                   = var.workspace_crn
 }
 
 data "ibm_pi_workspace" "workspace" {

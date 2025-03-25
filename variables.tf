@@ -801,3 +801,9 @@ variable "kdump_crash_kernel_memory" {
   description = "The crashkernel memory reservation for kdump occurs during the system boot"
   default     = "2G-4G:384M,4G-16G:512M,16G-64G:1G,64G-128G:2G,128G-:4G"
 }
+
+variable "workspace_crn" {
+  type        = string
+  description = "CRN of workspace. Only used if using in satellite location."
+  default     = ""
+}

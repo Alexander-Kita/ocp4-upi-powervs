@@ -532,7 +532,7 @@ resource "null_resource" "rhel83_fix" {
 }
 
 resource "ibm_pi_network_port" "bastion_vip" {
-  count      = local.bastion_count > 1 ? 1 : 0
+  count      = !var.is_ppc && local.bastion_count > 1 ? 1 : 0
   depends_on = [ibm_pi_instance.bastion]
 
   pi_network_name      = data.ibm_pi_network.network.pi_network_name
@@ -545,6 +545,32 @@ resource "ibm_pi_network_port" "bastion_internal_vip" {
 
   pi_network_name      = ibm_pi_network.public_network[0].pi_network_name
   pi_cloud_instance_id = var.service_instance_id
+}
+
+resource "null_resource" "change_dns_network_for_bastion_dns" {
+  count = !var.is_ppc ? 0: local.bastion_count
+
+  triggers = {
+    api_key = var.ibmcloud_api_key
+    bastion_ip = data.ibm_pi_instance_ip.bastion_ip[0].ip
+    dns_forwarders = join(",", var.network_dns)
+    network_name = data.ibm_pi_network.network.pi_network_name
+    workspace_crn = var.workspace_crn
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+ibm_cloud_endpoint_base_url="cloud.ibm.com"
+
+echo "ibmcloud login -a https://$ibm_cloud_endpoint_base_url --apikey <api-key> --no-region"
+ibmcloud login -a https://$ibm_cloud_endpoint_base_url --apikey ${self.triggers.api_key} --no-region
+
+ibmcloud pi ws tg ${self.triggers.workspace_crn}
+
+echo "ibmcloud pi snet upd ${self.triggers.network_name} -d ${self.triggers.bastion_ip},${self.triggers.dns_forwarders}"
+ibmcloud pi snet upd ${self.triggers.network_name} -d ${self.triggers.bastion_ip},${self.triggers.dns_forwarders}
+EOT
+  }
 }
 
 resource "ibm_pi_cloud_connection" "cloud_connection" {

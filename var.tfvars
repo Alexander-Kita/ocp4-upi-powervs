@@ -4,7 +4,10 @@ ibmcloud_api_key    = "<key>"
 ibmcloud_region     = "<region>"
 ibmcloud_zone       = "<zone>"
 service_instance_id = "<cloud_instance_ID>"
-#is_ppc              = false
+
+# Satellite Location vars
+# is_ppc        = false
+# workspace_crn = ""
 
 ### OpenShift Cluster Details
 
@@ -26,11 +29,11 @@ rhcos_image_name = "rhcos-4.12"
 
 ### Custom Mirrors
 
-epel_install_mirror       = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/Packages/e/epel-release-9-9.el9.noarch.rpm"
-baseos_mirror_repo        = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/BaseOS/$basearch/os"
-appstream_mirror_repo     = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/AppStream/$basearch/os"
-epel_mirror_repo          = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/"
-extras_common_mirror_repo = "https://ftp-chi.osuosl.org/pub/centos-stream/SIGs/9-stream/extras/ppc64le/extras-common/"
+# epel_install_mirror       = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/Packages/e/epel-release-9-9.el9.noarch.rpm"
+# baseos_mirror_repo        = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/BaseOS/$basearch/os"
+# appstream_mirror_repo     = "https://ftp-chi.osuosl.org/pub/centos-stream/$releasever-stream/AppStream/$basearch/os"
+# epel_mirror_repo          = "https://ftp.osuosl.org/pub/fedora-epel/9/Everything/ppc64le/"
+# extras_common_mirror_repo = "https://ftp-chi.osuosl.org/pub/centos-stream/SIGs/9-stream/extras/ppc64le/extras-common/"
 
 ### Provide these parameters if RHCOS image needs to be imported from public bucket of cloud object storage to PVS.
 ### When this is provided, data provided through parameter "rhcos_image_name" will be ignored.
