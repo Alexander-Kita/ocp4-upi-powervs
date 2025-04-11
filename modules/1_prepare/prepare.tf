@@ -19,7 +19,7 @@
 ################################################################
 
 locals {
-  bastion_count = lookup(var.bastion, "count", 1)
+  bastion_count = !var.is_ppc ? lookup(var.bastion, "count", 1): 1
   proxy = {
     server    = lookup(var.proxy, "server", ""),
     port      = lookup(var.proxy, "port", "3128"),

@@ -139,7 +139,7 @@ module "install" {
   gateway_ip                     = module.prepare.gateway_ip
   cidr                           = module.prepare.cidr
   public_cidr                    = module.prepare.public_cidr
-  bastion_count                  = lookup(var.bastion, "count", 1)
+  bastion_count                  = !var.is_ppc ? lookup(var.bastion, "count", 1): 1
   bastion_vip                    = module.prepare.bastion_vip
   bastion_ip                     = module.prepare.bastion_ip
   rhel_username                  = var.rhel_username
@@ -222,7 +222,7 @@ module "install" {
 }
 
 module "ibmcloud" {
-  count  = var.use_ibm_cloud_services ? 1 : 0
+  count  = !var.is_ppc && var.use_ibm_cloud_services ? 1 : 0
   source = "./modules/7_ibmcloud"
   providers = {
     ibm = ibm.vpc
@@ -232,7 +232,7 @@ module "ibmcloud" {
   cluster_id               = local.cluster_id
   name_prefix              = local.name_prefix
   node_prefix              = local.node_prefix
-  bastion_count            = lookup(var.bastion, "count", 1)
+  bastion_count            = !var.is_ppc ? lookup(var.bastion, "count", 1): 1
   bootstrap_count          = var.bootstrap["count"]
   master_count             = var.master["count"]
   worker_count             = var.worker["count"]
@@ -253,7 +253,7 @@ module "ibmcloud" {
 }
 
 module "custom" {
-  count      = var.ibm_cloud_cis_crn != "" && !var.use_ibm_cloud_services ? 1 : 0
+  count      = !var.is_ppc && var.ibm_cloud_cis_crn != "" && !var.use_ibm_cloud_services ? 1 : 0
   source     = "./modules/8_custom"
   depends_on = [module.install]
 
